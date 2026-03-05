@@ -9,6 +9,7 @@ import { ImageGenerator, VideoGenerator, AudioGenerator } from './base'
 import { FalBananaGenerator } from './fal'
 import { ArkSeedreamGenerator, ArkSeedanceVideoGenerator } from './ark'
 import { FalVideoGenerator } from './fal'
+import { ReplicateImageGenerator, ReplicateVideoGenerator } from './replicate'
 import {
     GoogleGeminiImageGenerator,
     GoogleImagenGenerator,
@@ -38,6 +39,8 @@ export function createImageGenerator(provider: string, modelId?: string): ImageG
     switch (providerKey) {
         case 'fal':
             return new FalBananaGenerator()
+        case 'replicate':
+            return new ReplicateImageGenerator(actualModelId)
         case 'google':
             if (actualModelId === 'gemini-3-pro-image-preview-batch') {
                 return new GoogleGeminiBatchImageGenerator()
@@ -69,6 +72,8 @@ export function createVideoGenerator(provider: string): VideoGenerator {
     switch (providerKey) {
         case 'fal':
             return new FalVideoGenerator()
+        case 'replicate':
+            return new ReplicateVideoGenerator()
         case 'ark':
             return new ArkSeedanceVideoGenerator()
         case 'google':

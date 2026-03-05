@@ -403,10 +403,38 @@ export function useProviders(): UseProvidersReturn {
     const addProvider = useCallback((provider: Omit<Provider, 'hasApiKey'>) => {
         setProviders(prev => {
             const normalizedProviderId = provider.id.toLowerCase()
-            if (prev.some((p) => p.id.toLowerCase() === normalizedProviderId)) {
+            const existing = prev.find((p) => p.id.toLowerCase() === normalizedProviderId)
+
+            // 预设提供商已存在时，更新其 apiKey/baseUrl 并自动启用对应模型
+            if (existing) {
+                const isPreset = PRESET_PROVIDERS.some(p => p.id === getProviderKey(existing.id))
+                if (isPreset && provider.apiKey) {
+                    const next = prev.map(p =>
+                        p.id.toLowerCase() === normalizedProviderId
+                            ? { ...p, apiKey: provider.apiKey, hasApiKey: !!provider.apiKey, baseUrl: provider.baseUrl || p.baseUrl }
+                            : p
+                    )
+                    latestProvidersRef.current = next
+
+                    // 自动启用该预设提供商的所有模型
+                    const providerKey = getProviderKey(provider.id)
+                    setModels(prevModels => {
+                        const nextModels = prevModels.map(m => {
+                            if (getProviderKey(m.provider) !== providerKey) return m
+                            if (m.enabled) return m
+                            return { ...m, enabled: true }
+                        })
+                        latestModelsRef.current = nextModels
+                        void performSave(undefined, true)
+                        return nextModels
+                    })
+
+                    return next
+                }
                 alert(t('providerIdExists'))
                 return prev
             }
+
             const newProvider: Provider = { ...provider, hasApiKey: !!provider.apiKey }
             const next = [...prev, newProvider]
             latestProvidersRef.current = next

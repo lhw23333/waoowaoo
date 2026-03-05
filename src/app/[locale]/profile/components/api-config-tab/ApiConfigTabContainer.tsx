@@ -17,7 +17,7 @@ import { useApiConfigFilters } from './hooks/useApiConfigFilters'
 import { ModelCapabilityDropdown } from '@/components/ui/config-modals/ModelCapabilityDropdown'
 import { AppIcon } from '@/components/ui/icons'
 
-type CustomProviderType = 'gemini-compatible' | 'openai-compatible'
+type CustomProviderType = 'gemini-compatible' | 'openai-compatible' | 'fal' | 'replicate'
 type DefaultModelField =
   | 'analysisModel'
   | 'characterModel'
@@ -150,7 +150,16 @@ export function ApiConfigTabContainer() {
   })
 
   const handleAddGeminiProvider = () => {
-    if (!newGeminiProvider.name || !newGeminiProvider.baseUrl) {
+    const isFal = newGeminiProvider.apiType === 'fal'
+    const isReplicate = newGeminiProvider.apiType === 'replicate'
+    const isPresetType = isFal || isReplicate
+    // FAL / Replicate 是预设提供商，只需 baseUrl + apiKey；其他类型需要 name + baseUrl
+    if (isPresetType) {
+      if (!newGeminiProvider.baseUrl || !newGeminiProvider.apiKey) {
+        alert(tp('fillRequired'))
+        return
+      }
+    } else if (!newGeminiProvider.name || !newGeminiProvider.baseUrl) {
       alert(tp('fillRequired'))
       return
     }
@@ -158,8 +167,9 @@ export function ApiConfigTabContainer() {
     const uuid = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
       ? crypto.randomUUID()
       : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
-    const providerId = `${newGeminiProvider.apiType}:${uuid}`
-    const name = newGeminiProvider.name.trim()
+    // FAL / Replicate 使用固定 ID（生成器硬编码依赖此 ID）
+    const providerId = isFal ? 'fal' : isReplicate ? 'replicate' : `${newGeminiProvider.apiType}:${uuid}`
+    const name = newGeminiProvider.name.trim() || (isReplicate ? 'Replicate' : 'FAL')
     const baseUrl = newGeminiProvider.baseUrl.trim()
     const apiKey = newGeminiProvider.apiKey.trim()
 
@@ -168,7 +178,7 @@ export function ApiConfigTabContainer() {
       name,
       baseUrl,
       apiKey,
-      apiMode: newGeminiProvider.apiType === 'openai-compatible' ? 'openai-official' : 'gemini-sdk',
+      ...(isPresetType ? {} : { apiMode: newGeminiProvider.apiType === 'openai-compatible' ? 'openai-official' as const : 'gemini-sdk' as const }),
     })
 
     setNewGeminiProvider({
@@ -417,6 +427,8 @@ export function ApiConfigTabContainer() {
               >
                 <option value="gemini-compatible">{t('apiTypeGeminiCompatible')}</option>
                 <option value="openai-compatible">{t('apiTypeOpenAICompatible')}</option>
+                <option value="fal">FAL</option>
+                <option value="replicate">Replicate</option>
               </select>
               <div className="pointer-events-none absolute right-3 top-3 text-[var(--glass-text-tertiary)]">
                 <Icons.chevronDown />

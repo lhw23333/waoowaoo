@@ -68,8 +68,8 @@ export async function generateLipSync(
         audio_url: audioDataUrl,
       }
 
-      const { apiKey } = await getProviderConfig(userId, selection.provider)
-      const requestId = await submitFalTask(endpoint, input, apiKey)
+      const { apiKey, baseUrl } = await getProviderConfig(userId, selection.provider)
+      const requestId = await submitFalTask(endpoint, input, apiKey, baseUrl)
       _ulogInfo(`[LipSync Async] FAL 任务已提交: ${requestId}`)
 
       return {

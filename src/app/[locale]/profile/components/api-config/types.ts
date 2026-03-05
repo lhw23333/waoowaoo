@@ -129,6 +129,24 @@ export const PRESET_MODELS: PresetModel[] = [
     { modelId: 'fal-ai/kling-video/lipsync/audio-to-video', name: 'Kling Lip Sync', type: 'lipsync', provider: 'fal' },
     { modelId: 'vidu-lipsync', name: 'Vidu Lip Sync', type: 'lipsync', provider: 'vidu' },
 
+    // Replicate 图像模型
+    { modelId: 'replicate-banana-2', name: 'Nano Banana 2', type: 'image', provider: 'replicate' },
+    { modelId: 'replicate-banana-pro', name: 'Nano Banana Pro', type: 'image', provider: 'replicate' },
+    { modelId: 'replicate-imagen4', name: 'Imagen 4', type: 'image', provider: 'replicate' },
+    { modelId: 'replicate-imagen4-fast', name: 'Imagen 4 Fast', type: 'image', provider: 'replicate' },
+    { modelId: 'replicate-flux-pro', name: 'Flux 1.1 Pro', type: 'image', provider: 'replicate' },
+    { modelId: 'replicate-flux-kontext', name: 'Flux Kontext Pro', type: 'image', provider: 'replicate' },
+    { modelId: 'replicate-recraft-v4', name: 'Recraft V4', type: 'image', provider: 'replicate' },
+    // Replicate 视频模型
+    { modelId: 'replicate-veo31', name: 'Veo 3.1', type: 'video', provider: 'replicate' },
+    { modelId: 'replicate-veo3', name: 'Veo 3', type: 'video', provider: 'replicate' },
+    { modelId: 'replicate-wan26', name: 'Wan 2.6 I2V', type: 'video', provider: 'replicate' },
+    { modelId: 'replicate-kling25', name: 'Kling 2.5 Turbo Pro', type: 'video', provider: 'replicate' },
+    { modelId: 'replicate-kling26', name: 'Kling 2.6', type: 'video', provider: 'replicate' },
+    { modelId: 'replicate-hailuo', name: 'Hailuo 2.3', type: 'video', provider: 'replicate' },
+    { modelId: 'replicate-ray2', name: 'Ray 2', type: 'video', provider: 'replicate' },
+    { modelId: 'replicate-gen4', name: 'Gen-4 Turbo', type: 'video', provider: 'replicate' },
+
     // MiniMax 视频模型
     { modelId: 'minimax-hailuo-2.3', name: 'Hailuo 2.3', type: 'video', provider: 'minimax' },
     { modelId: 'minimax-hailuo-2.3-fast', name: 'Hailuo 2.3 Fast', type: 'video', provider: 'minimax' },
@@ -166,6 +184,7 @@ export const PRESET_PROVIDERS: Omit<Provider, 'apiKey' | 'hasApiKey'>[] = [
     { id: 'minimax', name: 'MiniMax Hailuo' },
     { id: 'vidu', name: 'Vidu' },
     { id: 'fal', name: 'FAL' },
+    { id: 'replicate', name: 'Replicate' },
     { id: 'qwen', name: 'Qwen' },
 ]
 
@@ -286,6 +305,15 @@ export const PROVIDER_TUTORIALS: ProviderTutorial[] = [
             {
                 text: 'fal_step1',
                 url: 'https://fal.ai/dashboard/keys'
+            }
+        ]
+    },
+    {
+        providerId: 'replicate',
+        steps: [
+            {
+                text: 'replicate_step1',
+                url: 'https://replicate.com/account/api-tokens'
             }
         ]
     },

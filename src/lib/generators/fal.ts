@@ -56,7 +56,9 @@ export class FalImageGenerator extends BaseImageGenerator {
     protected async doGenerate(params: ImageGenerateParams): Promise<GenerateResult> {
         const { userId, prompt, referenceImages = [], options = {} } = params
 
-        const { apiKey } = await getProviderConfig(userId, 'fal')
+        const providerConfig = await getProviderConfig(userId, 'fal')
+        const { apiKey } = providerConfig
+        const falBaseUrl = (providerConfig.baseUrl || 'https://queue.fal.run').replace(/\/+$/, '')
         const {
             aspectRatio,
             resolution,
@@ -146,7 +148,7 @@ export class FalImageGenerator extends BaseImageGenerator {
         logger.info({
             message: 'FAL image request body summary',
             details: {
-                url: `https://queue.fal.run/${endpoint}`,
+                url: `${falBaseUrl}/${endpoint}`,
                 promptLength: prompt.length,
                 imageUrlsCount: hasReferenceImages ? (body.image_urls as string[]).length : 0,
                 resolution: body.resolution ?? null,
@@ -156,7 +158,7 @@ export class FalImageGenerator extends BaseImageGenerator {
         })
 
         // 提交异步任务
-        const submitResponse = await fetch(`https://queue.fal.run/${endpoint}`, {
+        const submitResponse = await fetch(`${falBaseUrl}/${endpoint}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -196,7 +198,9 @@ export class FalVideoGenerator extends BaseVideoGenerator {
     protected async doGenerate(params: VideoGenerateParams): Promise<GenerateResult> {
         const { userId, imageUrl, prompt = '', options = {} } = params
 
-        const { apiKey } = await getProviderConfig(userId, 'fal')
+        const providerConfig = await getProviderConfig(userId, 'fal')
+        const { apiKey } = providerConfig
+        const falBaseUrl = providerConfig.baseUrl?.replace(/\/+$/, '')
         const {
             duration,
             resolution,
@@ -288,7 +292,7 @@ export class FalVideoGenerator extends BaseVideoGenerator {
         }
 
         try {
-            const requestId = await submitFalTask(endpoint, input, apiKey)
+            const requestId = await submitFalTask(endpoint, input, apiKey, falBaseUrl)
             vLogger.info({ message: 'FAL video task submitted', details: { requestId } })
 
             return {

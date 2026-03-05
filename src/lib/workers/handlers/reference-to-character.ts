@@ -34,6 +34,7 @@ async function generateLabeledImage(params: {
   prompt: string
   referenceImages?: string[]
   falApiKey?: string | null
+  falBaseUrl?: string
   keyPrefix: string
   labelText: string
 }): Promise<string | null> {
@@ -45,6 +46,7 @@ async function generateLabeledImage(params: {
     prompt,
     referenceImages,
     falApiKey,
+    falBaseUrl,
     keyPrefix,
     labelText,
   } = params
@@ -71,7 +73,7 @@ async function generateLabeledImage(params: {
       for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt += 1) {
         await assertTaskActive(job, `reference_to_character_poll_${imageIndex + 1}_${attempt + 1}`)
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
-        const status = await queryFalStatus(endpoint, requestId, falApiKey)
+        const status = await queryFalStatus(endpoint, requestId, falApiKey, falBaseUrl)
         if (status.completed && status.resultUrl) {
           finalImageUrl = status.resultUrl
           break
@@ -202,7 +204,9 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
   }
 
   const useReferenceImages = !customDescription
-  const { apiKey: falApiKey } = await getProviderConfig(job.data.userId, 'fal')
+  const falConfig = await getProviderConfig(job.data.userId, 'fal')
+  const falApiKey = falConfig.apiKey
+  const falBaseUrl = falConfig.baseUrl
   const keyPrefix = isAssetHub ? 'ref-char' : `proj-ref-char-${job.data.projectId}`
 
   await reportTaskProgress(job, 35, {
@@ -220,6 +224,7 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
       prompt,
       referenceImages: useReferenceImages ? allReferenceImages : undefined,
       falApiKey,
+      falBaseUrl,
       keyPrefix,
       labelText: characterName,
     }),

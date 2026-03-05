@@ -19,12 +19,13 @@ import { logInfo as _ulogInfo, logError as _ulogError } from '@/lib/logging/core
  * @param apiKey FAL API Key
  * @returns request_id
  */
-export async function submitFalTask(endpoint: string, input: Record<string, unknown>, apiKey: string): Promise<string> {
+export async function submitFalTask(endpoint: string, input: Record<string, unknown>, apiKey: string, baseUrl?: string): Promise<string> {
     if (!apiKey) {
         throw new Error('请配置 FAL API Key')
     }
 
-    const response = await fetch(`https://queue.fal.run/${endpoint}`, {
+    const falBase = (baseUrl || 'https://queue.fal.run').replace(/\/+$/, '')
+    const response = await fetch(`${falBase}/${endpoint}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -72,7 +73,7 @@ function parseFalEndpointId(endpoint: string): { owner: string; alias: string; p
  * @param requestId 任务ID
  * @param apiKey FAL API Key
  */
-export async function queryFalStatus(endpoint: string, requestId: string, apiKey: string): Promise<{
+export async function queryFalStatus(endpoint: string, requestId: string, apiKey: string, baseUrl?: string): Promise<{
     status: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED'
     completed: boolean
     failed: boolean
@@ -82,6 +83,8 @@ export async function queryFalStatus(endpoint: string, requestId: string, apiKey
     if (!apiKey) {
         throw new Error('请配置 FAL API Key')
     }
+
+    const falBase = (baseUrl || 'https://queue.fal.run').replace(/\/+$/, '')
 
     // 🔥 根据 FAL 官方客户端逻辑解析端点 ID
     // 端点格式: owner/alias/path (path 部分在状态查询时忽略)
@@ -93,7 +96,7 @@ export async function queryFalStatus(endpoint: string, requestId: string, apiKey
         _ulogInfo(`[FAL Status] 解析端点 ${endpoint} -> ${baseEndpoint} (忽略路径: ${parsed.path})`)
     }
 
-    const statusUrl = `https://queue.fal.run/${baseEndpoint}/requests/${requestId}/status?logs=0`
+    const statusUrl = `${falBase}/${baseEndpoint}/requests/${requestId}/status?logs=0`
 
     // FAL 状态查询使用 GET 方法
     const response = await fetch(statusUrl, {
@@ -122,7 +125,7 @@ export async function queryFalStatus(endpoint: string, requestId: string, apiKey
         // 优先使用返回的 response_url，如果没有则构建 URL
         // 注意：获取结果必须使用完整的原始端点（包括 /edit 等路径），而不是 baseEndpoint
         // 否则 FAL 会把请求当作新任务处理，导致 422 错误（缺少 image_urls 等必需参数）
-        const resultUrl = data.response_url || `https://queue.fal.run/${endpoint}/requests/${requestId}`
+        const resultUrl = data.response_url || `${falBase}/${endpoint}/requests/${requestId}`
         _ulogInfo(`[FAL Status] 任务已完成，获取结果: ${resultUrl}`)
 
         const resultResponse = await fetch(resultUrl, {
@@ -296,9 +299,133 @@ export async function queryArkVideoStatus(taskId: string, apiKey: string): Promi
     }
 }
 
+// ==================== Replicate 预测任务 ====================
+
+/**
+ * 提交 Replicate 预测任务
+ * @param modelOwner 模型所有者，如 'google'
+ * @param modelName 模型名称，如 'nano-banana-2'
+ * @param input 请求参数
+ * @param apiKey API Key（Bearer token）
+ * @param baseUrl 基础 URL（默认 https://api.replicate.com）
+ * @returns prediction ID
+ */
+export async function submitReplicateTask(
+    modelOwner: string,
+    modelName: string,
+    input: Record<string, unknown>,
+    apiKey: string,
+    baseUrl?: string,
+): Promise<string> {
+    if (!apiKey) {
+        throw new Error('请配置 Replicate API Key')
+    }
+
+    const base = (baseUrl || 'https://api.replicate.com').replace(/\/+$/, '')
+    const url = `${base}/v1/models/${modelOwner}/${modelName}/predictions`
+
+    _ulogInfo(`[Replicate] 提交任务: ${modelOwner}/${modelName}`)
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ input }),
+    })
+
+    if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Replicate 提交失败 (${response.status}): ${errorText}`)
+    }
+
+    const data = await response.json()
+    const predictionId = data.id
+
+    if (!predictionId) {
+        throw new Error('Replicate 未返回 prediction ID')
+    }
+
+    _ulogInfo(`[Replicate] 任务已提交: ${predictionId}`)
+    return predictionId
+}
+
+/**
+ * 查询 Replicate 预测任务状态
+ * @param predictionId 预测 ID
+ * @param apiKey API Key（Bearer token）
+ * @param baseUrl 基础 URL
+ */
+export async function queryReplicateStatus(
+    predictionId: string,
+    apiKey: string,
+    baseUrl?: string,
+): Promise<{
+    status: string
+    completed: boolean
+    failed: boolean
+    resultUrl?: string
+    error?: string
+}> {
+    if (!apiKey) {
+        throw new Error('请配置 Replicate API Key')
+    }
+
+    const base = (baseUrl || 'https://api.replicate.com').replace(/\/+$/, '')
+    const url = `${base}/v1/predictions/${predictionId}`
+
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+    })
+
+    if (!response.ok) {
+        return {
+            status: 'unknown',
+            completed: false,
+            failed: false,
+        }
+    }
+
+    const data = await response.json()
+    const status = data.status // starting | processing | succeeded | failed | canceled
+
+    _ulogInfo(`[Replicate] predictionId=${predictionId.slice(0, 16)}... 状态=${status}`)
+
+    if (status === 'succeeded') {
+        const output = data.output
+        // output 可能是 string URL 或 array
+        const resultUrl = Array.isArray(output)
+            ? (typeof output[0] === 'string' ? output[0] : undefined)
+            : (typeof output === 'string' ? output : undefined)
+        return {
+            status: 'succeeded',
+            completed: true,
+            failed: false,
+            resultUrl,
+        }
+    }
+
+    if (status === 'failed' || status === 'canceled') {
+        return {
+            status,
+            completed: false,
+            failed: true,
+            error: typeof data.error === 'string' ? data.error : '任务失败',
+        }
+    }
+
+    return {
+        status,
+        completed: false,
+        failed: false,
+    }
+}
+
 // ==================== 通用接口 ====================
 
-export type AsyncTaskProvider = 'fal' | 'ark'
+export type AsyncTaskProvider = 'fal' | 'ark' | 'replicate'
 export type AsyncTaskType = 'video' | 'image' | 'tts' | 'lipsync'
 
 /**
@@ -312,7 +439,8 @@ export async function queryAsyncTaskStatus(
     provider: AsyncTaskProvider,
     taskId: string,
     apiKey: string,
-    endpoint?: string
+    endpoint?: string,
+    baseUrl?: string
 ): Promise<{
     status: string
     completed: boolean
@@ -321,9 +449,11 @@ export async function queryAsyncTaskStatus(
     error?: string
 }> {
     if (provider === 'fal' && endpoint) {
-        return queryFalStatus(endpoint, taskId, apiKey)
+        return queryFalStatus(endpoint, taskId, apiKey, baseUrl)
     } else if (provider === 'ark') {
         return queryArkVideoStatus(taskId, apiKey)
+    } else if (provider === 'replicate') {
+        return queryReplicateStatus(taskId, apiKey, baseUrl)
     }
 
     return {

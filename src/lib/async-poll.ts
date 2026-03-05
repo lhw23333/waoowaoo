@@ -16,7 +16,7 @@ import { logInfo as _ulogInfo, logError as _ulogError } from '@/lib/logging/core
  * - 仅接受标准 externalId（不再兼容历史拼装格式）
  */
 
-import { queryFalStatus } from './async-submit'
+import { queryFalStatus, queryReplicateStatus } from './async-submit'
 import { queryGeminiBatchStatus, querySeedanceVideoStatus, queryGoogleVideoStatus } from './async-task-utils'
 import { getProviderConfig } from './api-config'
 
@@ -42,7 +42,7 @@ function getErrorMessage(error: unknown): string {
  * 解析 externalId 获取 provider、type 和请求信息
  */
 export function parseExternalId(externalId: string): {
-    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'UNKNOWN'
+    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'REPLICATE' | 'UNKNOWN'
     type: 'VIDEO' | 'IMAGE' | 'BATCH' | 'UNKNOWN'
     endpoint?: string
     requestId: string
@@ -157,9 +157,30 @@ export function parseExternalId(externalId: string): {
         }
     }
 
+    // REPLICATE:TYPE:owner/model:predictionId
+    if (externalId.startsWith('REPLICATE:')) {
+        const parts = externalId.split(':')
+        const type = parts[1]
+        if ((type !== 'VIDEO' && type !== 'IMAGE') || parts.length < 4) {
+            throw new Error(`无效 REPLICATE externalId: "${externalId}"，应为 REPLICATE:TYPE:endpoint:predictionId`)
+        }
+        // endpoint 可能包含 /，所以取 parts[2..n-1] 作为 endpoint，最后一个作为 predictionId
+        const endpoint = parts.slice(2, -1).join(':')
+        const requestId = parts[parts.length - 1]
+        if (!endpoint || !requestId) {
+            throw new Error(`无效 REPLICATE externalId: "${externalId}"，缺少 endpoint 或 predictionId`)
+        }
+        return {
+            provider: 'REPLICATE',
+            type: type as 'VIDEO' | 'IMAGE',
+            endpoint,
+            requestId,
+        }
+    }
+
     throw new Error(
         `无法识别的 externalId 格式: "${externalId}". ` +
-        `支持的格式: FAL:TYPE:endpoint:requestId, ARK:TYPE:requestId, GEMINI:BATCH:batchName, GOOGLE:VIDEO:operationName, MINIMAX:TYPE:taskId, VIDU:TYPE:taskId, OPENAI:VIDEO:providerToken:videoId`
+        `支持的格式: FAL:TYPE:endpoint:requestId, ARK:TYPE:requestId, GEMINI:BATCH:batchName, GOOGLE:VIDEO:operationName, MINIMAX:TYPE:taskId, VIDU:TYPE:taskId, OPENAI:VIDEO:providerToken:videoId, REPLICATE:TYPE:endpoint:predictionId`
     )
 }
 
@@ -193,6 +214,8 @@ export async function pollAsyncTask(
             return await pollViduTask(parsed.requestId, userId)
         case 'OPENAI':
             return await pollOpenAIVideoTask(parsed.requestId, userId, parsed.providerToken)
+        case 'REPLICATE':
+            return await pollReplicateTask(parsed.requestId, userId)
         default:
             // 🔥 移除 fallback：未知 provider 直接抛出错误
             throw new Error(`未知的 Provider: ${parsed.provider}`)
@@ -286,8 +309,8 @@ async function pollFalTask(
     requestId: string,
     userId: string
 ): Promise<PollResult> {
-    const { apiKey } = await getProviderConfig(userId, 'fal')
-    const result = await queryFalStatus(endpoint, requestId, apiKey)
+    const { apiKey, baseUrl } = await getProviderConfig(userId, 'fal')
+    const result = await queryFalStatus(endpoint, requestId, apiKey, baseUrl)
 
     return {
         status: result.completed ? (result.failed ? 'failed' : 'completed') : 'pending',
@@ -295,6 +318,25 @@ async function pollFalTask(
         imageUrl: result.resultUrl,
         videoUrl: result.resultUrl,
         error: result.error
+    }
+}
+
+/**
+ * Replicate 任务轮询
+ */
+async function pollReplicateTask(
+    predictionId: string,
+    userId: string
+): Promise<PollResult> {
+    const { apiKey, baseUrl } = await getProviderConfig(userId, 'replicate')
+    const result = await queryReplicateStatus(predictionId, apiKey, baseUrl)
+
+    return {
+        status: result.completed ? (result.failed ? 'failed' : 'completed') : (result.failed ? 'failed' : 'pending'),
+        resultUrl: result.resultUrl,
+        imageUrl: result.resultUrl,
+        videoUrl: result.resultUrl,
+        error: result.error,
     }
 }
 
@@ -599,7 +641,7 @@ async function queryViduTaskStatus(
  * 创建标准格式的 externalId
  */
 export function formatExternalId(
-    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI',
+    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'REPLICATE',
     type: 'VIDEO' | 'IMAGE' | 'BATCH',
     requestId: string,
     endpoint?: string,
@@ -610,6 +652,12 @@ export function formatExternalId(
             throw new Error('FAL externalId requires endpoint')
         }
         return `FAL:${type}:${endpoint}:${requestId}`
+    }
+    if (provider === 'REPLICATE') {
+        if (!endpoint) {
+            throw new Error('REPLICATE externalId requires endpoint')
+        }
+        return `REPLICATE:${type}:${endpoint}:${requestId}`
     }
     if (provider === 'OPENAI') {
         if (!providerToken) {

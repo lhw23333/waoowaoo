@@ -425,6 +425,23 @@ export function createClipContentMatcher(content: string): ClipContentMatcher {
       const end = endText.trim()
       if (!start || !end) return null
 
+      // 当 start === end 时（LLM 返回单句片段），退化为单标记匹配
+      if (start === end) {
+        const l1 = tryExactRawMarkerMatch(content, start, fromIndex)
+        if (l1) return { ...l1, level: 'L1' }
+
+        const normalizedMarker = normalizeQuery(start)
+        if (!normalizedMarker) return null
+
+        const l2 = tryExactNormalizedMarkerMatch(normalized, normalizedMarker, fromIndex)
+        if (l2) return { ...l2, level: 'L2' }
+
+        const l3 = tryApproximateNormalizedMarkerMatch(normalized, normalizedMarker, fromIndex)
+        if (l3) return { ...l3, level: 'L3' }
+
+        return null
+      }
+
       const l1 = tryExactRawMatch(content, start, end, fromIndex)
       if (l1) return l1
 
