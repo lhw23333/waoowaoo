@@ -64,6 +64,31 @@ const REPLICATE_VIDEO_ENDPOINTS: Record<string, string> = {
 }
 
 /**
+ * 各视频模型的图片输入参数名。
+ * Replicate 不同模型要求的参数名不同，统一用 image_url 会导致部分模型报错。
+ */
+const REPLICATE_VIDEO_IMAGE_PARAM: Record<string, string> = {
+    'replicate-veo31': 'image',
+    'replicate-veo3': 'image',
+    'replicate-wan26': 'image',
+    'replicate-kling25': 'start_image',
+    'replicate-kling26': 'start_image',
+    'replicate-hailuo': 'first_frame_image',
+    'replicate-ray2': 'start_image',
+    'replicate-gen4': 'image',
+}
+
+/**
+ * 支持首尾帧模式的模型 → 尾帧参数名。
+ * 仅部分模型支持，不在此映射中的模型不支持尾帧。
+ */
+const REPLICATE_VIDEO_LAST_FRAME_PARAM: Record<string, string> = {
+    'replicate-kling25': 'end_image',
+    'replicate-ray2': 'end_image',
+    'replicate-veo31': 'last_frame',
+}
+
+/**
  * 将 "owner/model" 拆分为 { owner, model }
  */
 function parseReplicateEndpoint(endpoint: string): { owner: string; model: string } {
@@ -176,10 +201,12 @@ export class ReplicateVideoGenerator extends BaseVideoGenerator {
         const {
             duration,
             aspectRatio,
+            lastFrameImageUrl,
             modelId = this.modelId || 'replicate-wan26',
         } = options as {
             duration?: number
             aspectRatio?: string
+            lastFrameImageUrl?: string
             modelId?: string
             provider?: string
             modelKey?: string
@@ -198,13 +225,21 @@ export class ReplicateVideoGenerator extends BaseVideoGenerator {
         })
         vLogger.info({ message: 'Replicate video generation request', details: { modelId, endpoint } })
 
-        // 构建输入参数
+        // 构建输入参数 — 使用各模型对应的图片参数名
+        const imageParamName = REPLICATE_VIDEO_IMAGE_PARAM[modelId] || 'image_url'
         const input: Record<string, unknown> = {
-            image_url: imageUrl,
+            [imageParamName]: imageUrl,
         }
         if (prompt) input.prompt = prompt
         if (typeof duration === 'number') input.duration = duration
         if (aspectRatio) input.aspect_ratio = aspectRatio
+
+        // 首尾帧模式 — 如果模型支持且提供了尾帧图片
+        const lastFrameParamName = REPLICATE_VIDEO_LAST_FRAME_PARAM[modelId]
+        if (lastFrameImageUrl && lastFrameParamName) {
+            input[lastFrameParamName] = lastFrameImageUrl
+            vLogger.info({ message: 'Replicate video using first/last frame mode', details: { modelId, lastFrameParamName } })
+        }
 
         try {
             const predictionId = await submitReplicateTask(owner, model, input, apiKey, baseUrl)

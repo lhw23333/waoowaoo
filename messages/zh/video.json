@@ -53,6 +53,14 @@
     "batchModeEnabled": "已开启批量模式",
     "batchModeDisabled": "批量模式已关闭"
   },
+  "requestPreview": {
+    "title": "请求预览",
+    "copy": "复制",
+    "copied": "已复制",
+    "panelImage": "面板图片",
+    "userSet": "用户设置",
+    "noDefaults": "该模型无预设默认参数"
+  },
   "promptModal": {
     "title": "编辑镜头 #{number} 视频提示词",
     "shotType": "景别：",

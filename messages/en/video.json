@@ -53,6 +53,14 @@
     "batchModeEnabled": "Batch mode enabled",
     "batchModeDisabled": "Batch mode disabled"
   },
+  "requestPreview": {
+    "title": "Request Preview",
+    "copy": "Copy",
+    "copied": "Copied",
+    "panelImage": "panel image",
+    "userSet": "user",
+    "noDefaults": "No preset defaults for this model"
+  },
   "promptModal": {
     "title": "Edit Shot #{number} Video Prompt",
     "shotType": "Shot Type:",

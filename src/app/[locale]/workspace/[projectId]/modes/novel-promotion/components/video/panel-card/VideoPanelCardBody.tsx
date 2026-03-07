@@ -2,6 +2,7 @@ import TaskStatusInline from '@/components/task/TaskStatusInline'
 import { resolveTaskPresentationState } from '@/lib/task/presentation'
 import { ModelCapabilityDropdown } from '@/components/ui/config-modals/ModelCapabilityDropdown'
 import { AppIcon } from '@/components/ui/icons'
+import VideoRequestPreviewPanel from './VideoRequestPreviewPanel'
 import type { VideoPanelRuntime } from './hooks/useVideoPanelActions'
 
 interface VideoPanelCardBodyProps {
@@ -191,6 +192,16 @@ export default function VideoPanelCardBody({ runtime }: VideoPanelCardBodyProps)
                     />
                   </div>
                 </div>
+
+                {videoModel.selectedModel && (
+                  <VideoRequestPreviewPanel
+                    modelKey={videoModel.selectedModel}
+                    prompt={promptEditor.localPrompt || panel.textPanel?.description || ''}
+                    videoRatio={layout.videoRatio}
+                    generationOptions={videoModel.generationOptions}
+                    t={t}
+                  />
+                )}
 
                 {computed.showLipSyncSection && (
                   <div className="mt-2">
